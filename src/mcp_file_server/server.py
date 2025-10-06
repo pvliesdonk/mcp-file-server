@@ -1,15 +1,15 @@
 import json
-import logging
 import pathlib
 from typing import Annotated, Any, Optional
 
 import click
 from click_params import IP_ADDRESS
 from fastmcp import Context, FastMCP
+from fastmcp.utilities.logging import configure_logging, get_logger
 from pydantic import Field
 
 # configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 BASE_PATH: pathlib.Path = pathlib.Path("/data")
 
@@ -22,8 +22,11 @@ async def list_files(
 ) -> dict | str:
     """List all files in the specified directory"""
 
-    full_path = BASE_PATH / path
+    global BASE_PATH
 
+    logger.info(f"Received request to list files in directory: {path}")
+    full_path = BASE_PATH / path
+    logger.info(f"Adding this to {BASE_PATH} results in {full_path}")
     logger.debug(f"Listing files in directory: {full_path}")
 
     if not full_path.exists() or not full_path.is_dir():
@@ -65,8 +68,9 @@ async def list_files(
 )
 def main(transport: str, port: int, host: str, log_level: str, path: pathlib.Path) -> None:
     # Configure logging
-    logging.basicConfig(level=getattr(logging, log_level.upper()))
+    configure_logging(log_level)  # type: ignore
 
+    global BASE_PATH
     BASE_PATH = pathlib.Path(path).resolve()
     if not BASE_PATH.exists():
         logger.error(f"Base path {BASE_PATH} does not exist.")
