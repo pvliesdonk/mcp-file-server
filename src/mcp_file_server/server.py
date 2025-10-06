@@ -1,15 +1,40 @@
+import json
 import logging
-from typing import Any, Optional
+import pathlib
+from typing import Annotated, Any, Optional
 
 import click
 from click_params import IP_ADDRESS
 from fastmcp import Context, FastMCP
+from pydantic import Field
 
 # configure logging
 logger = logging.getLogger(__name__)
 
+BASE_PATH: pathlib.Path = pathlib.Path("/data")
 
 mcp = FastMCP("mcp-file-server")
+
+
+@mcp.tool
+async def list_files(
+    path: Annotated[pathlib.Path, Field(description="The directory path to list files from.")],
+) -> dict | str:
+    """List all files in the specified directory
+
+    Args:
+        path: The directory path to list files from.
+    """
+    full_path = BASE_PATH / path
+
+    if not full_path.exists() or not full_path.is_dir():
+        return f"Directory {path} does not exist or is not a directory."
+
+    file_info = []
+    for f in full_path.iterdir():
+        file_info.append({"name": f.name, "type": "Directory" if f.is_dir() else "File", "size": f.stat().st_size})
+
+    return json.dumps(file_info, indent=2)
 
 
 @click.command()
@@ -29,9 +54,20 @@ mcp = FastMCP("mcp-file-server")
     envvar="LOG_LEVEL",
     help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
 )
-def main(transport: str, port: int, host: str, log_level: str) -> None:
+@click.option(
+    "--path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default="/data",
+    help="Base path for the file server",
+)
+def main(transport: str, port: int, host: str, log_level: str, path: pathlib.Path) -> None:
     # Configure logging
     logging.basicConfig(level=getattr(logging, log_level.upper()))
+
+    BASE_PATH = pathlib.Path(path).resolve()
+    if not BASE_PATH.exists():
+        logger.error(f"Base path {BASE_PATH} does not exist.")
+        return
 
     if transport == "streamable-http":
         mcp.run(transport="streamable-http", host=str(host), port=port)

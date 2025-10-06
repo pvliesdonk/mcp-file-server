@@ -8,6 +8,7 @@ dependencies = [
     "click",
     "click-params>=0.5.0",
     "fastmcp>=2.12.4",
+    "pydantic>=2.11.10",
 ]
 
 

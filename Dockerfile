@@ -17,7 +17,7 @@ ENV TRANSPORT=streamable-gttp
 ENV LOG_LEVEL=INFO
 ENV HOST=0.0.0.0
 ENV PORT=3000
-
+ENV PATH=/data
 
 CMD ["uv", "run", "mcp-file-server"]
 VOLUME /data
