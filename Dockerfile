@@ -20,3 +20,4 @@ ENV PORT=3000
 
 
 CMD ["uv", "run", "mcp-file-server"]
+VOLUME /data
