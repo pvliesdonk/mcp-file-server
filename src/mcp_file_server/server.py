@@ -20,21 +20,24 @@ mcp = FastMCP("mcp-file-server")
 async def list_files(
     path: Annotated[pathlib.Path, Field(description="The directory path to list files from.")],
 ) -> dict | str:
-    """List all files in the specified directory
+    """List all files in the specified directory"""
 
-    Args:
-        path: The directory path to list files from.
-    """
     full_path = BASE_PATH / path
+
+    logger.debug(f"Listing files in directory: {full_path}")
 
     if not full_path.exists() or not full_path.is_dir():
         return f"Directory {path} does not exist or is not a directory."
 
     file_info = []
     for f in full_path.iterdir():
-        file_info.append({"name": f.name, "type": "Directory" if f.is_dir() else "File", "size": f.stat().st_size})
+        file_info.append(
+            {"name": f.name, "type": "Directory" if f.is_dir() else "File", "size": f.stat().st_size, "stats": f.stat()}
+        )
 
-    return json.dumps(file_info, indent=2)
+    out = json.dumps(file_info, indent=2)
+    logger.debug(f"File listing output: {out}")
+    return out
 
 
 @click.command()
@@ -68,6 +71,8 @@ def main(transport: str, port: int, host: str, log_level: str, path: pathlib.Pat
     if not BASE_PATH.exists():
         logger.error(f"Base path {BASE_PATH} does not exist.")
         return
+
+    logger.info(f"Using base path: {BASE_PATH}")
 
     if transport == "streamable-http":
         mcp.run(transport="streamable-http", host=str(host), port=port)
