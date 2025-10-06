@@ -5,12 +5,23 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "click",
+    "click>=8.1.7",
     "click-params>=0.5.0",
     "fastmcp>=2.12.4",
     "pydantic>=2.11.10",
 ]
 
+[dependency-groups]
+dev = [
+  {include-group = "lint"},
+  {include-group = "test"}
+]
+lint = [
+  "ruff>=0.6.9",
+]
+test = [
+  "pyright>=1.1.378", "pytest>=8.3.3"
+]
 
 [project.scripts]
 mcp-file-server = "mcp_file_server.server:main"
@@ -31,6 +42,3 @@ ignore = []
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-
-[tool.uv]
-dev-dependencies = ["pyright>=1.1.378", "pytest>=8.3.3", "ruff>=0.6.9"]

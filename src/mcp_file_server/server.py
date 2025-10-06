@@ -25,18 +25,16 @@ async def list_files(
     global BASE_PATH
 
     logger.info(f"Received request to list files in directory: {path}")
-    full_path = BASE_PATH / path
+    full_path = BASE_PATH.joinpath(path)
     logger.info(f"Adding this to {BASE_PATH} results in {full_path}")
-    logger.debug(f"Listing files in directory: {full_path}")
+    logger.info(f"Listing files in directory: {full_path}")
 
     if not full_path.exists() or not full_path.is_dir():
         return f"Directory {path} does not exist or is not a directory."
 
     file_info = []
     for f in full_path.iterdir():
-        file_info.append(
-            {"name": f.name, "type": "Directory" if f.is_dir() else "File", "size": f.stat().st_size, "stats": f.stat()}
-        )
+        file_info.append({"name": f.name, "type": "Directory", "size": f.stat().st_size if f.is_dir() else "-"})
 
     out = json.dumps(file_info, indent=2)
     logger.debug(f"File listing output: {out}")

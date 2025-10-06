@@ -11,7 +11,7 @@ ENV UV_COMPILE_BYTECODE=1
 ADD . /app
 
 # Sync the project into a new environment, asserting the lockfile is up to date
-RUN uv sync --locked
+RUN uv sync --locked --no-dev
 
 EXPOSE 3000
 
