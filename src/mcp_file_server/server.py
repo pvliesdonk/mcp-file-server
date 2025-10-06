@@ -16,7 +16,10 @@ BASE_PATH: pathlib.Path = pathlib.Path("/data")
 
 def get_full_path(relative_path: pathlib.Path) -> pathlib.Path:
     """Get the full path for a given relative path."""
-    return BASE_PATH.joinpath(relative_path.relative_to("/"))
+    if relative_path.is_absolute(): 	   
+        return BASE_PATH.joinpath(relative_path.relative_to("/"))
+    else:
+        return BASE_PATH.joinpath(relative_path)
 
 
 def get_relative_path(full_path: pathlib.Path) -> pathlib.Path:
