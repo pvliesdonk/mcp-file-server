@@ -30,15 +30,13 @@ mcp = FastMCP("mcp-file-server")
 @mcp.tool
 async def list_files(
     path: Annotated[pathlib.Path, Field(description="The directory path to list files from.")],
-) -> dict | str:
+) -> dict | list[dict]:
     """List all files in the specified directory"""
-    logger.info(f"Received request to list files in directory: {path}")
+
     full_path = get_full_path(path)
-    logger.info(f"Adding this to {BASE_PATH} results in {full_path}")
-    logger.info(f"Listing files in directory: {full_path}")
 
     if not full_path.exists() or not full_path.is_dir():
-        return f"Directory {path} does not exist or is not a directory."
+        return {"error": f"Directory {path} does not exist or is not a directory."}
 
     file_info = []
     for f in full_path.iterdir():
@@ -52,22 +50,18 @@ async def list_files(
         )
 
     if len(file_info) == 0:
-        return f"No files found in directory {path}."
+        return {"message": f"No files found in directory {path}."}
 
-    out = json.dumps(file_info, indent=2)
-    logger.debug(f"File listing output: {out}")
-    return out
+    return file_info
 
 
 @mcp.tool
 async def read_file(file_path: Annotated[pathlib.Path, Field(description="The file path to read from.")]) -> dict | str:
     """Read the contents of a specified file"""
-    logger.info(f"Received request to read file: {file_path}")
     full_path = get_full_path(file_path)
-    logger.info(f"Adding this to {BASE_PATH} results in {full_path}")
 
     if not full_path.exists() or not full_path.is_file():
-        return f"File {file_path} does not exist or is not a file."
+        return {"error": f"File {file_path} does not exist or is not a file."}
 
     try:
         with open(full_path, "r", encoding="utf-8") as f:
@@ -76,17 +70,20 @@ async def read_file(file_path: Annotated[pathlib.Path, Field(description="The fi
             return content
     except Exception as e:
         logger.error(f"Error reading file {full_path}: {e}")
-        return f"Error reading file {file_path}: {e}"
+        return {"error": f"Error reading file {file_path}: {e}"}
 
 
 @mcp.tool
 async def create_file(
     file_path: Annotated[pathlib.Path, Field(description="The file path to create.")], content: str
-) -> dict | str:
+) -> dict:
     """Create a new file with the specified content"""
-    logger.info(f"Received request to create file: {file_path}")
     full_path = get_full_path(file_path)
-    logger.info(f"Adding this to {BASE_PATH} results in {full_path}")
+
+    if full_path.exists():
+        if full_path.is_dir():
+            return {"error": f"File {file_path} is an existing directory."}
+        return {"error": f"File {file_path} already exists."}
 
     try:
         with open(full_path, "w", encoding="utf-8") as f:
@@ -99,14 +96,12 @@ async def create_file(
 
 
 @mcp.tool
-async def delete_file(file_path: Annotated[pathlib.Path, Field(description="The file path to delete.")]) -> dict | str:
+async def delete_file(file_path: Annotated[pathlib.Path, Field(description="The file path to delete.")]) -> dict:
     """Delete a specified file"""
-    logger.info(f"Received request to delete file: {file_path}")
     full_path = get_full_path(file_path)
-    logger.info(f"Adding this to {BASE_PATH} results in {full_path}")
 
     if not full_path.exists() or not full_path.is_file():
-        return f"File {file_path} does not exist or is not a file."
+        return {"error": f"File {file_path} does not exist or is not a file."}
 
     try:
         full_path.unlink()
@@ -115,6 +110,46 @@ async def delete_file(file_path: Annotated[pathlib.Path, Field(description="The 
     except Exception as e:
         logger.error(f"Error deleting file {full_path}: {e}")
         return {"error": f"Error deleting file {file_path}: {e}"}
+
+
+@mcp.tool
+async def create_directory(
+    dir_path: Annotated[pathlib.Path, Field(description="The directory path to create.")],
+) -> dict:
+    """Create a new directory"""
+    full_path = get_full_path(dir_path)
+
+    if full_path.exists():
+        if full_path.is_file():
+            return {"error": f"File {dir_path} is an existing file."}
+        return {"error": f"Directory {dir_path} already exists."}
+
+    try:
+        full_path.mkdir(parents=True, exist_ok=False)
+        logger.info(f"Successfully created directory {full_path}")
+        return {"message": f"Directory {dir_path} created successfully."}
+    except Exception as e:
+        logger.error(f"Error creating directory {full_path}: {e}")
+        return {"error": f"Error creating directory {dir_path}: {e}"}
+
+
+@mcp.tool
+async def delete_directory(
+    dir_path: Annotated[pathlib.Path, Field(description="The directory path to delete.")],
+) -> dict:
+    """Delete a specified directory"""
+    full_path = get_full_path(dir_path)
+
+    if not full_path.exists() or not full_path.is_dir():
+        return {"error": f"Directory {dir_path} does not exist or is not a directory."}
+
+    try:
+        full_path.rmdir()
+        logger.info(f"Successfully deleted directory {full_path}")
+        return {"message": f"Directory {dir_path} deleted successfully."}
+    except Exception as e:
+        logger.error(f"Error deleting directory {full_path}: {e}")
+        return {"error": f"Error deleting directory {dir_path}: {e}"}
 
 
 @click.command()
