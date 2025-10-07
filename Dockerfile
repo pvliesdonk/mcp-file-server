@@ -26,4 +26,3 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 CMD ["mcp-file-server"]
 VOLUME /data
-USER 1000:1000
