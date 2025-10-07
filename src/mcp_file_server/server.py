@@ -33,7 +33,9 @@ mcp = FastMCP("mcp-file-server")
 
 @mcp.tool()
 async def list_files(
-    path: Annotated[pathlib.Path, Field(description="The directory path to list files from.")], ctx: Context
+    path: Annotated[pathlib.Path, Field(description="The directory path to list files from.")],
+    recursive: Annotated[bool, Field(description="Recursively also show files in subdirectories.")],
+    ctx: Context,
 ) -> list[dict]:
     """List all files in the specified directory"""
 
@@ -43,7 +45,12 @@ async def list_files(
         raise FileNotFoundError(f"Directory {path} does not exist or is not a directory.")
 
     file_info = []
-    for f in full_path.iterdir():
+    if recursive:
+        filegen = full_path.rglob("*")
+    else:
+        filegen = full_path.iterdir()
+
+    for f in filegen:
         file_info.append(
             {
                 "name": f.name,
@@ -72,7 +79,8 @@ async def read_text_file(
             logger.debug(f"Read content from {full_path}: {content[:100]}...")  # Log first 100 chars
             return content
     except Exception as e:
-        await ctx.error(f"Error reading file {full_path}: {e}")
+        logger.error(f"Error reading file {full_path}: {e}")
+        await ctx.error(f"Error reading file {file_path}: {e}")
         raise e
 
 
@@ -93,9 +101,11 @@ async def create_text_file(
     try:
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(content)
-            await ctx.info(f"File {file_path} created successfully.")
+            logger.info(f"Text file {full_path} created successfully.")
+            await ctx.info(f"Text file {file_path} created successfully.")
     except Exception as e:
-        await ctx.error(f"Error creating file {full_path}: {e}")
+        logger.error(f"Error creating text file {full_path}: {e}")
+        await ctx.error(f"Error creating text file {file_path}: {e}")
         raise e
 
 
@@ -115,9 +125,11 @@ async def append_text_file(
     try:
         with open(full_path, "a", encoding="utf-8") as f:
             f.write(content)
-            await ctx.info(f"File {file_path} updated successfully.")
+            logger.info(f"Text file {full_path} was updated successfully.")
+            await ctx.info(f"Text file {file_path} was updated successfully.")
     except Exception as e:
-        await ctx.error(f"Error updating file {full_path}: {e}")
+        logger.error(f"Error updating text file {full_path}: {e}")
+        await ctx.error(f"Error updating text file {file_path}: {e}")
         raise e
 
 
@@ -134,10 +146,11 @@ async def read_binary_file(
     try:
         with open(full_path, "rb") as f:
             content = f.read()
-            logger.debug(f"Read content from {full_path}: {content[:100]}...")  # Log first 100 bytes
+            logger.debug(f"Read binary content from {full_path}")  # Log first 100 bytes
             return content
     except Exception as e:
-        await ctx.error(f"Error reading file {full_path}: {e}")
+        logger.error(f"Error reading file {full_path}: {e}")
+        await ctx.error(f"Error reading file {file_path}: {e}")
         raise e
 
 
@@ -145,6 +158,7 @@ async def read_binary_file(
 async def create_binary_file(
     file_path: Annotated[pathlib.Path, Field(description="The binary file path to create.")],
     content: Annotated[bytes, Field(description="The binary content to write to the file.")],
+    ctx: Context,
 ) -> None:
     """Create a new binary file with the specified content"""
     full_path = get_full_path(file_path)
@@ -157,9 +171,11 @@ async def create_binary_file(
     try:
         with open(full_path, "wb") as f:
             f.write(content)
-            logger.info(f"File {file_path} created successfully.")
+            logger.info(f"Binary file {file_path} created successfully.")
+            await ctx.info(f"Binary file {file_path} was created successfully.")
     except Exception as e:
-        logger.error(f"Error creating file {full_path}: {e}")
+        logger.error(f"Error creating binary file {full_path}: {e}")
+        await ctx.error(f"Error creating binary file {file_path}: {e}")
         raise e
 
 
@@ -167,6 +183,7 @@ async def create_binary_file(
 async def create_binary_file_from_base64(
     file_path: Annotated[pathlib.Path, Field(description="The binary file path to create.")],
     content: Annotated[str, Field(description="The base64-encoded content to write to the file.")],
+    ctx: Context,
 ) -> None:
     """Create a new binary file with the specified base64-encoded content"""
     full_path = get_full_path(file_path)
@@ -180,66 +197,72 @@ async def create_binary_file_from_base64(
         with open(full_path, "wb") as f:
             f.write(base64.b64decode(content))
             logger.info(f"File {file_path} created successfully.")
+            await ctx.info(f"Binary file {file_path} was created successfully.")
     except Exception as e:
-        logger.error(f"Error creating file {full_path}: {e}")
+        logger.error(f"Error creating binary file {full_path}: {e}")
+        await ctx.error(f"Error creating binary file {file_path}: {e}")
         raise e
 
 
 @mcp.tool
-async def delete_file(file_path: Annotated[pathlib.Path, Field(description="The file path to delete.")]) -> dict:
+async def delete_file(
+    file_path: Annotated[pathlib.Path, Field(description="The file path to delete.")], ctx: Context
+) -> None:
     """Delete a specified file"""
     full_path = get_full_path(file_path)
 
     if not full_path.exists() or not full_path.is_file():
-        return {"error": f"File {file_path} does not exist or is not a file."}
-
+        raise FileNotFoundError(f"File {file_path} does not exist or is not a file.")
     try:
         full_path.unlink()
         logger.info(f"Successfully deleted file {full_path}")
-        return {"message": f"File {file_path} deleted successfully."}
+        await ctx.info(f"File {file_path} was deleted successfully.")
     except Exception as e:
         logger.error(f"Error deleting file {full_path}: {e}")
-        return {"error": f"Error deleting file {file_path}: {e}"}
+        await ctx.error(f"Error deleting file {file_path}: {e}")
+        raise e
 
 
 @mcp.tool
 async def create_directory(
-    dir_path: Annotated[pathlib.Path, Field(description="The directory path to create.")],
-) -> dict:
+    dir_path: Annotated[pathlib.Path, Field(description="The directory path to create.")], ctx: Context
+) -> None:
     """Create a new directory"""
     full_path = get_full_path(dir_path)
 
     if full_path.exists():
         if full_path.is_file():
-            return {"error": f"File {dir_path} is an existing file."}
-        return {"error": f"Directory {dir_path} already exists."}
+            raise FileExistsError(f"File {dir_path} is an existing file.")
+        raise FileExistsError(f"Directory {dir_path} already exists.")
 
     try:
         full_path.mkdir(parents=True, exist_ok=False)
         logger.info(f"Successfully created directory {full_path}")
-        return {"message": f"Directory {dir_path} created successfully."}
+        await ctx.info(f"Directory {dir_path} created successfully.")
     except Exception as e:
         logger.error(f"Error creating directory {full_path}: {e}")
-        return {"error": f"Error creating directory {dir_path}: {e}"}
+        await ctx.error(f"Error creating directory {dir_path}: {e}")
+        raise e
 
 
 @mcp.tool
 async def delete_directory(
-    dir_path: Annotated[pathlib.Path, Field(description="The directory path to delete.")],
-) -> dict:
+    dir_path: Annotated[pathlib.Path, Field(description="The directory path to delete.")], ctx: Context
+) -> None:
     """Delete a specified directory"""
     full_path = get_full_path(dir_path)
 
     if not full_path.exists() or not full_path.is_dir():
-        return {"error": f"Directory {dir_path} does not exist or is not a directory."}
+        raise FileNotFoundError(f"Directory {dir_path} does not exist or is not a directory.")
 
     try:
         full_path.rmdir()
         logger.info(f"Successfully deleted directory {full_path}")
-        return {"message": f"Directory {dir_path} deleted successfully."}
+        await ctx.info(f"Directory {dir_path} deleted successfully.")
     except Exception as e:
         logger.error(f"Error deleting directory {full_path}: {e}")
-        return {"error": f"Error deleting directory {dir_path}: {e}"}
+        await ctx.error(f"Error deleting directory {dir_path}: {e}")
+        raise e
 
 
 @click.command()
