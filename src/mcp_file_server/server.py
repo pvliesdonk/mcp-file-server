@@ -1,3 +1,4 @@
+import base64
 import json
 import pathlib
 from typing import Annotated, Any, Optional
@@ -16,7 +17,7 @@ BASE_PATH: pathlib.Path = pathlib.Path("/data")
 
 def get_full_path(relative_path: pathlib.Path) -> pathlib.Path:
     """Get the full path for a given relative path."""
-    if relative_path.is_absolute(): 	   
+    if relative_path.is_absolute():
         return BASE_PATH.joinpath(relative_path.relative_to("/"))
     else:
         return BASE_PATH.joinpath(relative_path)
@@ -30,16 +31,16 @@ def get_relative_path(full_path: pathlib.Path) -> pathlib.Path:
 mcp = FastMCP("mcp-file-server")
 
 
-@mcp.tool
+@mcp.tool()
 async def list_files(
-    path: Annotated[pathlib.Path, Field(description="The directory path to list files from.")],
-) -> dict | list[dict]:
+    path: Annotated[pathlib.Path, Field(description="The directory path to list files from.")], ctx: Context
+) -> list[dict]:
     """List all files in the specified directory"""
 
     full_path = get_full_path(path)
 
     if not full_path.exists() or not full_path.is_dir():
-        return {"error": f"Directory {path} does not exist or is not a directory."}
+        raise FileNotFoundError(f"Directory {path} does not exist or is not a directory.")
 
     file_info = []
     for f in full_path.iterdir():
@@ -52,19 +53,18 @@ async def list_files(
             }
         )
 
-    if len(file_info) == 0:
-        return {"message": f"No files found in directory {path}."}
-
     return file_info
 
 
 @mcp.tool
-async def read_file(file_path: Annotated[pathlib.Path, Field(description="The file path to read from.")]) -> dict | str:
+async def read_text_file(
+    file_path: Annotated[pathlib.Path, Field(description="The file path to read from.")], ctx: Context
+) -> str:
     """Read the contents of a specified file"""
     full_path = get_full_path(file_path)
 
     if not full_path.exists() or not full_path.is_file():
-        return {"error": f"File {file_path} does not exist or is not a file."}
+        raise FileNotFoundError(f"File {file_path} does not exist or is not a file.")
 
     try:
         with open(full_path, "r", encoding="utf-8") as f:
@@ -72,30 +72,117 @@ async def read_file(file_path: Annotated[pathlib.Path, Field(description="The fi
             logger.debug(f"Read content from {full_path}: {content[:100]}...")  # Log first 100 chars
             return content
     except Exception as e:
-        logger.error(f"Error reading file {full_path}: {e}")
-        return {"error": f"Error reading file {file_path}: {e}"}
+        await ctx.error(f"Error reading file {full_path}: {e}")
+        raise e
 
 
 @mcp.tool
-async def create_file(
-    file_path: Annotated[pathlib.Path, Field(description="The file path to create.")], content: str
-) -> dict:
-    """Create a new file with the specified content"""
+async def create_text_file(
+    file_path: Annotated[pathlib.Path, Field(description="The file path to create.")],
+    content: Annotated[str, Field(description="The text content to write to the file.")],
+    ctx: Context,
+) -> None:
+    """Create a new text file with the specified content"""
     full_path = get_full_path(file_path)
 
     if full_path.exists():
         if full_path.is_dir():
-            return {"error": f"File {file_path} is an existing directory."}
-        return {"error": f"File {file_path} already exists."}
+            raise FileExistsError(f"File {file_path} is an existing directory.")
+        raise FileExistsError(f"File {file_path} already exists.")
 
     try:
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(content)
-            logger.info(f"Successfully created file {full_path}")
-            return {"message": f"File {file_path} created successfully."}
+            await ctx.info(f"File {file_path} created successfully.")
+    except Exception as e:
+        await ctx.error(f"Error creating file {full_path}: {e}")
+        raise e
+
+
+@mcp.tool
+async def append_text_file(
+    file_path: Annotated[pathlib.Path, Field(description="The file path to create.")],
+    content: Annotated[str, Field(description="The text content to append to the file.")],
+    ctx: Context,
+) -> None:
+    """Append text to an existing text file with the specified content"""
+
+    full_path = get_full_path(file_path)
+
+    if not full_path.exists() or not full_path.is_file():
+        raise FileNotFoundError(f"File {file_path} does not exist or is not a file.")
+
+    try:
+        with open(full_path, "a", encoding="utf-8") as f:
+            f.write(content)
+            await ctx.info(f"File {file_path} updated successfully.")
+    except Exception as e:
+        await ctx.error(f"Error updating file {full_path}: {e}")
+        raise e
+
+
+@mcp.tool
+async def read_binary_file(
+    file_path: Annotated[pathlib.Path, Field(description="The binary file path to read from.")], ctx: Context
+) -> bytes:
+    """Read the contents of a specified binary file"""
+    full_path = get_full_path(file_path)
+
+    if not full_path.exists() or not full_path.is_file():
+        raise FileNotFoundError(f"File {file_path} does not exist or is not a file.")
+
+    try:
+        with open(full_path, "rb") as f:
+            content = f.read()
+            logger.debug(f"Read content from {full_path}: {content[:100]}...")  # Log first 100 bytes
+            return content
+    except Exception as e:
+        await ctx.error(f"Error reading file {full_path}: {e}")
+        raise e
+
+
+@mcp.tool
+async def create_binary_file(
+    file_path: Annotated[pathlib.Path, Field(description="The binary file path to create.")],
+    content: Annotated[bytes, Field(description="The binary content to write to the file.")],
+) -> None:
+    """Create a new binary file with the specified content"""
+    full_path = get_full_path(file_path)
+
+    if full_path.exists():
+        if full_path.is_dir():
+            raise FileExistsError(f"File {file_path} is an existing directory.")
+        raise FileExistsError(f"File {file_path} already exists.")
+
+    try:
+        with open(full_path, "wb") as f:
+            f.write(content)
+            logger.info(f"File {file_path} created successfully.")
     except Exception as e:
         logger.error(f"Error creating file {full_path}: {e}")
-        return {"error": f"Error creating file {file_path}: {e}"}
+        raise e
+
+
+@mcp.tool
+async def create_binary_file_from_base64(
+    file_path: Annotated[pathlib.Path, Field(description="The binary file path to create.")],
+    content: Annotated[str, Field(description="The base64-encoded content to write to the file.")],
+) -> None:
+    """Create a new binary file with the specified base64-encoded content"""
+    full_path = get_full_path(file_path)
+
+    if full_path.exists():
+        if full_path.is_dir():
+            raise FileExistsError(f"File {file_path} is an existing directory.")
+        raise FileExistsError(f"File {file_path} already exists.")
+
+    try:
+        with open(full_path, "wb") as f:
+            f.write(base64.b64decode(content))
+            logger.info(f"File {file_path} created successfully.")
+    except Exception as e:
+        logger.error(f"Error creating file {full_path}: {e}")
+        raise e
 
 
 @mcp.tool
