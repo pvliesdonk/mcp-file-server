@@ -24,5 +24,5 @@ ENV PATH=/data
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["run-server"]
+CMD ["mcp-run-server "]
 VOLUME /data
