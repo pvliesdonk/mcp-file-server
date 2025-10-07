@@ -24,7 +24,7 @@ test = [
 ]
 
 [project.scripts]
-mcp-run-server = "mcp_file_server.server:main"
+run-server = "mcp_file_server.server:main"
 
 [build-system]
 requires = ["uv_build"]
